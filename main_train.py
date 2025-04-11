@@ -13,35 +13,47 @@ if __name__ == '__main__':
     parser = get_arguments()
     opt = parser.parse_args()
     
-    # Post-process configuration if needed.
+    # Post-config adjustment if needed.
     opt = functions.post_config(opt)
     
-    # Determine the directory to save the trained model
+    # Generate directory to save the model and samples.
     opt.dir2save = functions.generate_dir2save(opt)
     if not os.path.exists(opt.dir2save):
         os.makedirs(opt.dir2save)
     
-    # Read the input image and adjust scales
+    # Read the input image (normalized to [-1, 1])
     real = functions.read_image(opt)
+    
+    # Save the normalized input for debugging purposes.
+    plt.imsave(os.path.join(opt.dir2save, 'input_debug.png'), ((real+1)/2).squeeze().permute(1,2,0).numpy())
+    print("Saved normalized input image for debugging.")
+
+    # Adjust scales (dummy for now)
     real = functions.adjust_scales2image(real, opt)
     
-    # Optionally load mask if provided
+    # Load the mask (if provided)
     functions.load_mask(opt)
     
-    # Check if a trained model exists
+    # Optionally, if a mask exists, you might blend it with the image.
+    # For debugging, you can comment out mask blending to see if training improves.
+    if opt.mask_original_image is not None:
+        # For completion tasks, you could combine: known regions from the mask and unknown filled with the image.
+        # Here, we assume mask values close to 1 mean “keep original” while 0 means “to be completed.”
+        real_masked = opt.mask_original_image * real
+        real = real_masked
+        print("Using masked input for training.")
+    
+    # Check whether a pretrained model exists.
     trained_model_path = os.path.join(opt.dir2save, 'Gs.pth')
     if os.path.isfile(trained_model_path):
         print("Found trained model at", trained_model_path)
+        # For simplicity in this example, we load the state via functions.load_trained_pyramid.
         Gs, Ds, Zs, reals, NoiseAmp = functions.load_trained_pyramid(opt)
     else:
         print("No trained model found. Starting training...")
         start_time = time.time()
-        Gs, Ds, Zs, reals, NoiseAmp = train(opt)
+        Gs, Ds, Zs, reals, NoiseAmp = train(opt, real)
         elapsed_time = time.time() - start_time
         print("Training completed in %.2f seconds." % elapsed_time)
-    
-    # Optionally save the mask image if loaded
-    if opt.mask_original_image is not None:
-        plt.imsave(os.path.join(opt.dir2save, 'mask.png'), opt.mask_original_image.cpu().squeeze(), cmap='gray')
     
     print("Training finished. Check", opt.dir2save, "for trained model files.")
