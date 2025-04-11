@@ -10,6 +10,7 @@ def read_image(opt):
     img = Image.open(path).convert('RGB')
     transform = transforms.Compose([transforms.ToTensor()])
     img_tensor = transform(img).unsqueeze(0)  # Shape: [1, 3, H, W]
+    img_tensor = img_tensor * 2 - 1
     return img_tensor
 
 def adjust_scales2image(real, opt):
