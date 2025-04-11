@@ -3,12 +3,14 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 from SinGAN.models import Generator, Discriminator
+from SinGAN.functions import read_image
 
 def train(opt):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # For demonstration, we create a dummy image tensor.
     # In practice, you could pass functions.read_image(opt) from main_train.py.
-    image = torch.randn(1, 3, 256, 256, device=device)
+    # image = torch.randn(1, 3, 256, 256, device=device)
+    image = read_image(opt).to(device)
     
     netG = Generator(in_channels=3, nfc=opt.nfc, num_layers=opt.num_layer,
                      ker_size=opt.ker_size, padd_size=opt.padd_size).to(device)
@@ -34,6 +36,9 @@ def train(opt):
         optimizerG.zero_grad()
         fake = netG(image)
         fake_out = netD(fake)
+        with torch.no_grad():
+            output_range = (fake.min().item(), fake.max().item())
+            print("Generator output range (before scaling):", output_range)
         lossG = F.mse_loss(fake_out, torch.ones_like(fake_out))
         lossG.backward()
         optimizerG.step()

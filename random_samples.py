@@ -23,6 +23,9 @@ if __name__ == '__main__':
     opt.mode = 'random_samples'
     opt.gen_start_scale = 0
     images = SinGAN_generate(Gs, Zs, reals, NoiseAmp, opt)
+    sample = images[0]
+    print("Generated sample value range: min =", sample.min(), "max =", sample.max())
+
     
     for idx, img in enumerate(images):
         sample_path = os.path.join(opt.dir2save, f'random_sample_{idx}.png')
