@@ -30,7 +30,7 @@ def train(opt, real):
     optimizerG = optim.Adam(netG.parameters(), lr=0.0001, betas=(0.5, 0.999))
     optimizerD = optim.Adam(netD.parameters(), lr=0.0002, betas=(0.5, 0.999))
     
-    num_epochs = 2000  # Increase the number of epochs for better convergence
+    num_epochs = 3000  # Increase the number of epochs for better convergence
     lambda_tv = 0.2   # Weight for total variation loss
     
     for epoch in range(num_epochs):
@@ -55,7 +55,7 @@ def train(opt, real):
         lossG.backward()
         optimizerG.step()
 
-        if epoch % 50 == 0:
+        if epoch % 100 == 0:
           output_path = os.path.join(opt.dir2save, f'output_epoch_{epoch}.png')
           plt.imsave(output_path, ((fake[0].cpu().detach().numpy() + 1) / 2).transpose(1, 2, 0))
           print(f"Saved intermediate output image to {output_path}")
