@@ -1,4 +1,5 @@
 import os
+import matplotlib.pyplot as plt
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
@@ -29,8 +30,8 @@ def train(opt, real):
     optimizerG = optim.Adam(netG.parameters(), lr=0.0001, betas=(0.5, 0.999))
     optimizerD = optim.Adam(netD.parameters(), lr=0.0002, betas=(0.5, 0.999))
     
-    num_epochs = 1000  # Increase the number of epochs for better convergence
-    lambda_tv = 0.1   # Weight for total variation loss
+    num_epochs = 2000  # Increase the number of epochs for better convergence
+    lambda_tv = 0.2   # Weight for total variation loss
     
     for epoch in range(num_epochs):
         # =================== Train Discriminator ======================
@@ -48,11 +49,16 @@ def train(opt, real):
         fake = netG(real)
         fake_out = netD(fake)
         lossG_adv = F.mse_loss(fake_out, torch.ones_like(fake_out))
-        # Add total variation loss to reduce noise
         lossG_tv = lambda_tv * total_variation(fake)
+        
         lossG = lossG_adv + lossG_tv
         lossG.backward()
         optimizerG.step()
+
+        if epoch % 50 == 0:
+          output_path = os.path.join(opt.dir2save, f'output_epoch_{epoch}.png')
+          plt.imsave(output_path, ((fake[0].cpu().detach().numpy() + 1) / 2).transpose(1, 2, 0))
+          print(f"Saved intermediate output image to {output_path}")
         
         # Log training progress every 50 epochs.
         if epoch % 50 == 0:
