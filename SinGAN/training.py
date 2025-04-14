@@ -4,6 +4,7 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 from SinGAN.models import Generator, Discriminator
+from SinGAN.functions import load_mask, generate_dir2save, adjust_scales2image
 
 def total_variation(x):
     """
@@ -21,6 +22,18 @@ def train(opt, real):
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     real = real.to(device)
+    
+    # Load and process mask
+    load_mask(opt)  # Load mask into opt.mask_original_image
+    if opt.mask_original_image is not None:
+        mask = opt.mask_original_image.to(device)
+        mask = (mask > 0.5).float()  # Threshold the mask to ensure binary values
+        real_masked = mask * real  # Apply the mask to the input image
+        # Save the masked image for debugging
+        plt.imsave(os.path.join(opt.dir2save, 'masked_input.png'), ((real_masked + 1) / 2).squeeze().permute(1, 2, 0).cpu().numpy())
+    else:
+        print("No mask loaded. Proceeding without masking.")
+        real_masked = real  # No masking applied
 
     netG = Generator(in_channels=3, nfc=opt.nfc, num_layers=opt.num_layer,
                      ker_size=opt.ker_size, padd_size=opt.padd_size).to(device)
@@ -28,15 +41,15 @@ def train(opt, real):
                          ker_size=opt.ker_size, padd_size=opt.padd_size).to(device)
     
     optimizerG = optim.Adam(netG.parameters(), lr=0.0001, betas=(0.5, 0.999))
-    optimizerD = optim.Adam(netD.parameters(), lr=0.00002, betas=(0.5, 0.999))
+    optimizerD = optim.Adam(netD.parameters(), lr=0.0002, betas=(0.5, 0.999))
     
-    num_epochs = 2000  # Increase the number of epochs for better convergence
-    lambda_tv = 1.0   # Weight for total variation loss
+    num_epochs = 3000  # Increase the number of epochs for better convergence
+    lambda_tv = 0.2   # Weight for total variation loss
     
     for epoch in range(num_epochs):
         # =================== Train Discriminator ======================
         optimizerD.zero_grad()
-        fake = netG(real)
+        fake = netG(real_masked)
         real_out = netD(real)
         fake_out = netD(fake.detach())
         lossD = F.mse_loss(real_out, torch.ones_like(real_out)) + \
@@ -46,28 +59,20 @@ def train(opt, real):
         
         # =================== Train Generator ======================
         optimizerG.zero_grad()
-        fake = netG(real)
+        fake = netG(real_masked)
         fake_out = netD(fake)
         lossG_adv = F.mse_loss(fake_out, torch.ones_like(fake_out))
         lossG_tv = lambda_tv * total_variation(fake)
-
-        # Additional masked loss for reconstructing the masked region
-        if opt.mask_original_image is not None:
-            # Ensure the mask is on the same device as the real image
-            mask = opt.mask_original_image.to(device)
-            masked_loss = F.mse_loss(fake * (1 - mask), real * (1 - mask))
-            lambda_mask = 30.0  # Weight for the masked loss
-            lossG = lossG_adv + lossG_tv + lambda_mask * masked_loss
-        else:
-            lossG = lossG_adv + lossG_tv
-
+        
+        lossG = lossG_adv + lossG_tv
         lossG.backward()
         optimizerG.step()
 
+        # Save intermediate outputs every 100 epochs
         if epoch % 100 == 0:
-          output_path = os.path.join(opt.dir2save, f'output_epoch_{epoch}.png')
-          plt.imsave(output_path, ((fake[0].cpu().detach().numpy() + 1) / 2).transpose(1, 2, 0))
-          print(f"Saved intermediate output image to {output_path}")
+            output_path = os.path.join(opt.dir2save, f'output_epoch_{epoch}.png')
+            plt.imsave(output_path, ((fake[0].cpu().detach().numpy() + 1) / 2).transpose(1, 2, 0))
+            print(f"Saved intermediate output image to {output_path}")
         
         # Log training progress every 50 epochs.
         if epoch % 50 == 0:

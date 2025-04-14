@@ -50,15 +50,15 @@ def post_config(opt):
 
 def load_mask(opt):
     """
-    If --input_mask is provided, loads the mask from Input/Images/ as a grayscale tensor.
+    Loads a grayscale mask from Input/Images/ and normalizes it to [0, 1].
+    If --input_mask is provided, it loads the mask into opt.mask_original_image.
     """
     if opt.input_mask != "":
         mask_path = os.path.join(opt.input_dir, 'Images', opt.input_mask)
         if os.path.isfile(mask_path):
-            img = Image.open(mask_path).convert('L')
+            img = Image.open(mask_path).convert('L')  # Load as grayscale
             transform = transforms.Compose([transforms.ToTensor()])
             mask_tensor = transform(img).unsqueeze(0)  # shape: [1, 1, H, W]
-            mask_tensor = (mask_tensor > 0.5).float()  # Convert to binary mask
             opt.mask_original_image = mask_tensor
             print("Loaded mask with range:", mask_tensor.min().item(), mask_tensor.max().item())
         else:
@@ -67,6 +67,36 @@ def load_mask(opt):
     else:
         opt.mask_original_image = None
 
-def calc_scale_to_start_masking(opt, real):
-    """Returns a dummy scale index for starting masking."""
-    return 2
+def resize_and_tresh_mask(mask_tensor, scale):
+    """
+    Resizes and thresholds the mask to ensure it is binary.
+    Args:
+        mask_tensor: The original mask tensor (grayscale).
+        scale: The scaling factor for resizing the mask.
+    Returns:
+        A resized binary mask tensor.
+    """
+    # Resize the mask
+    mask_resized = torch.nn.functional.interpolate(mask_tensor, scale_factor=scale, mode='bilinear', align_corners=False)
+    # Threshold the mask to make it binary
+    mask_binary = (mask_resized > 0.5).float()
+    return mask_binary
+
+def creat_reals_mask_pyramid(real, reals, opt, mask):
+    """
+    Creates a pyramid of reals and corresponding masks for multi-scale SinGAN.
+    Args:
+        real: The input image tensor.
+        reals: The list of real images at different scales.
+        opt: Configuration options.
+        mask: The initial mask tensor.
+    Returns:
+        Updated reals and masks pyramids.
+    """
+    reals.append(real)
+    masks = [mask]
+    for i in range(1, opt.stop_scale + 1):
+        scale = pow(opt.scale_factor, opt.stop_scale - i)
+        reals.append(torch.nn.functional.interpolate(real, scale_factor=scale, mode='bilinear', align_corners=False))
+        masks.append(resize_and_tresh_mask(mask, scale))
+    return reals, masks
