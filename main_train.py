@@ -37,11 +37,17 @@ if __name__ == '__main__':
     # Optionally, if a mask exists, you might blend it with the image.
     # For debugging, you can comment out mask blending to see if training improves.
     if opt.mask_original_image is not None:
-        # For completion tasks, you could combine: known regions from the mask and unknown filled with the image.
-        # Here, we assume mask values close to 1 mean “keep original” while 0 means “to be completed.”
-        real_masked = opt.mask_original_image * real
-        real = real_masked
-        print("Using masked input for training.")
+    # Ensure the mask is binary (0s and 1s)
+      opt.mask_original_image = (opt.mask_original_image > 0.5).float()
+      
+      # Fill masked regions with the mean value of the background
+      masked_background = torch.tensor([0.0, -0.5, 0.0], device=real.device).view(1, 3, 1, 1)  # Green
+
+      real_masked = opt.mask_original_image * real + (1 - opt.mask_original_image) * masked_background
+      real = real_masked
+      plt.imsave(os.path.join(opt.dir2save, 'masked_debug.png'), ((real + 1) / 2).squeeze().permute(1, 2, 0).numpy())
+      plt.imsave('binary_mask_debug.png', opt.mask_original_image.squeeze().cpu().numpy(), cmap='gray')
+      print("Using masked input for training with background filling.")
     
     # Check whether a pretrained model exists.
     trained_model_path = os.path.join(opt.dir2save, 'Gs.pth')

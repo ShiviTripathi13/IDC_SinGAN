@@ -7,7 +7,7 @@ def get_arguments():
     parser.add_argument('--input_mask', default='', help='Input mask file name (e.g., church_mask.png)')
     parser.add_argument('--mode', default='train', help='Mode: train or random_samples')
     parser.add_argument('--num_scales', type=int, default=5, help='Number of pyramid scales')
-    parser.add_argument('--nfc', type=int, default=32, help='Base number of filters (increase for higher capacity)')
+    parser.add_argument('--nfc', type=int, default=64, help='Base number of filters (increase for higher capacity)')
     parser.add_argument('--ker_size', type=int, default=3, help='Kernel size for convolutions')
     parser.add_argument('--padd_size', type=int, default=1, help='Padding size for convolutions')
     parser.add_argument('--num_layer', type=int, default=5, help='Number of layers per scale')

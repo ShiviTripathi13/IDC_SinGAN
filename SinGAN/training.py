@@ -28,10 +28,10 @@ def train(opt, real):
                          ker_size=opt.ker_size, padd_size=opt.padd_size).to(device)
     
     optimizerG = optim.Adam(netG.parameters(), lr=0.0001, betas=(0.5, 0.999))
-    optimizerD = optim.Adam(netD.parameters(), lr=0.0002, betas=(0.5, 0.999))
+    optimizerD = optim.Adam(netD.parameters(), lr=0.00002, betas=(0.5, 0.999))
     
-    num_epochs = 3000  # Increase the number of epochs for better convergence
-    lambda_tv = 0.2   # Weight for total variation loss
+    num_epochs = 2000  # Increase the number of epochs for better convergence
+    lambda_tv = 1.0   # Weight for total variation loss
     
     for epoch in range(num_epochs):
         # =================== Train Discriminator ======================
@@ -50,8 +50,17 @@ def train(opt, real):
         fake_out = netD(fake)
         lossG_adv = F.mse_loss(fake_out, torch.ones_like(fake_out))
         lossG_tv = lambda_tv * total_variation(fake)
-        
-        lossG = lossG_adv + lossG_tv
+
+        # Additional masked loss for reconstructing the masked region
+        if opt.mask_original_image is not None:
+            # Ensure the mask is on the same device as the real image
+            mask = opt.mask_original_image.to(device)
+            masked_loss = F.mse_loss(fake * (1 - mask), real * (1 - mask))
+            lambda_mask = 30.0  # Weight for the masked loss
+            lossG = lossG_adv + lossG_tv + lambda_mask * masked_loss
+        else:
+            lossG = lossG_adv + lossG_tv
+
         lossG.backward()
         optimizerG.step()
 

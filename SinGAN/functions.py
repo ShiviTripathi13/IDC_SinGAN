@@ -58,6 +58,7 @@ def load_mask(opt):
             img = Image.open(mask_path).convert('L')
             transform = transforms.Compose([transforms.ToTensor()])
             mask_tensor = transform(img).unsqueeze(0)  # shape: [1, 1, H, W]
+            mask_tensor = (mask_tensor > 0.5).float()  # Convert to binary mask
             opt.mask_original_image = mask_tensor
             print("Loaded mask with range:", mask_tensor.min().item(), mask_tensor.max().item())
         else:
