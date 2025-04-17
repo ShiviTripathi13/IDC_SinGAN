@@ -4,6 +4,7 @@ from datetime import datetime
 import torch
 torch.autograd.set_detect_anomaly(True)
 import matplotlib.pyplot as plt
+import numpy as np
 
 from config import get_arguments
 import SinGAN.functions as functions
@@ -35,31 +36,29 @@ if __name__ == '__main__':
     functions.load_mask(opt)
     
     # Optionally, if a mask exists, you might blend it with the image.
-    # For debugging, you can comment out mask blending to see if training improves.
     if opt.mask_original_image is not None:
-    # Ensure the mask is binary (0s and 1s)
-      opt.mask_original_image = (opt.mask_original_image > 0.5).float()
-      
-      # Fill masked regions with the mean value of the background
-      masked_background = torch.tensor([0.0, -0.5, 0.0], device=real.device).view(1, 3, 1, 1)  # Green
-
-      real_masked = opt.mask_original_image * real + (1 - opt.mask_original_image) * masked_background
-      real = real_masked
-      plt.imsave(os.path.join(opt.dir2save, 'masked_debug.png'), ((real + 1) / 2).squeeze().permute(1, 2, 0).numpy())
-      plt.imsave('binary_mask_debug.png', opt.mask_original_image.squeeze().cpu().numpy(), cmap='gray')
-      print("Using masked input for training with background filling.")
+        opt.mask_original_image = (opt.mask_original_image > 0.5).float()
+        masked_background = torch.tensor([0.0, -0.5, 0.0], device=real.device).view(1, 3, 1, 1)  # Green
+        real_masked = opt.mask_original_image * real + (1 - opt.mask_original_image) * masked_background
+        real = real_masked
+        plt.imsave(os.path.join(opt.dir2save, 'masked_debug.png'), ((real + 1) / 2).squeeze().permute(1, 2, 0).numpy())
+        plt.imsave('binary_mask_debug.png', opt.mask_original_image.squeeze().cpu().numpy(), cmap='gray')
+        print("Using masked input for training with background filling.")
     
     # Check whether a pretrained model exists.
     trained_model_path = os.path.join(opt.dir2save, 'Gs.pth')
     if os.path.isfile(trained_model_path):
         print("Found trained model at", trained_model_path)
-        # For simplicity in this example, we load the state via functions.load_trained_pyramid.
-        Gs, Ds, Zs, reals, NoiseAmp = functions.load_trained_pyramid(opt)
+        Gs, Ds, Zs, reals, NoiseAmp, metrics = functions.load_trained_pyramid(opt)
     else:
         print("No trained model found. Starting training...")
         start_time = time.time()
-        Gs, Ds, Zs, reals, NoiseAmp = train(opt, real)
+        Gs, Ds, Zs, reals, NoiseAmp, metrics = train(opt, real)
         elapsed_time = time.time() - start_time
         print("Training completed in %.2f seconds." % elapsed_time)
     
+    # Plot and save metrics like accuracy
+    functions.plot_metrics(metrics, opt.dir2save)
+    print("Metrics visualization saved.")
+
     print("Training finished. Check", opt.dir2save, "for trained model files.")

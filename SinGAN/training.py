@@ -15,6 +15,12 @@ def total_variation(x):
     tv_w = torch.mean(torch.abs(x[:, :, :, 1:] - x[:, :, :, :-1]))
     return tv_h + tv_w
 
+def compute_accuracy(real, fake):
+    """
+    Computes accuracy as a simple metric for GAN performance.
+    """
+    return torch.mean((real - fake)**2).item()
+
 def train(opt, real):
     """
     Train the SinGAN generator and discriminator.
@@ -24,16 +30,15 @@ def train(opt, real):
     real = real.to(device)
     
     # Load and process mask
-    load_mask(opt)  # Load mask into opt.mask_original_image
+    load_mask(opt)
     if opt.mask_original_image is not None:
         mask = opt.mask_original_image.to(device)
         mask = (mask > 0.5).float()  # Threshold the mask to ensure binary values
         real_masked = mask * real  # Apply the mask to the input image
-        # Save the masked image for debugging
         plt.imsave(os.path.join(opt.dir2save, 'masked_input.png'), ((real_masked + 1) / 2).squeeze().permute(1, 2, 0).cpu().numpy())
     else:
         print("No mask loaded. Proceeding without masking.")
-        real_masked = real  # No masking applied
+        real_masked = real
 
     netG = Generator(in_channels=3, nfc=opt.nfc, num_layers=opt.num_layer,
                      ker_size=opt.ker_size, padd_size=opt.padd_size).to(device)
@@ -45,9 +50,11 @@ def train(opt, real):
     
     num_epochs = 3000  # Increase the number of epochs for better convergence
     lambda_tv = 0.2   # Weight for total variation loss
-    
+
+    metrics = {'accuracy': []}  # Store metrics like accuracy
+
     for epoch in range(num_epochs):
-        # =================== Train Discriminator ======================
+        # Train Discriminator
         optimizerD.zero_grad()
         fake = netG(real_masked)
         real_out = netD(real)
@@ -57,7 +64,7 @@ def train(opt, real):
         lossD.backward()
         optimizerD.step()
         
-        # =================== Train Generator ======================
+        # Train Generator
         optimizerG.zero_grad()
         fake = netG(real_masked)
         fake_out = netD(fake)
@@ -67,6 +74,10 @@ def train(opt, real):
         lossG = lossG_adv + lossG_tv
         lossG.backward()
         optimizerG.step()
+
+        # Compute accuracy
+        accuracy = compute_accuracy(real, fake)
+        metrics['accuracy'].append(accuracy)
 
         # Save intermediate outputs every 100 epochs
         if epoch % 100 == 0:
@@ -79,13 +90,11 @@ def train(opt, real):
             with torch.no_grad():
                 out_min = fake.min().item()
                 out_max = fake.max().item()
-            print(f"Epoch [{epoch}/{num_epochs}] Loss_D: {lossD.item():.4f}, Loss_G: {lossG_adv.item():.4f}+TV: {lossG_tv.item():.4f}, Output range: [{out_min:.4f}, {out_max:.4f}]")
+            print(f"Epoch [{epoch}/{num_epochs}] Loss_D: {lossD.item():.4f}, Loss_G: {lossG_adv.item():.4f}+TV: {lossG_tv.item():.4f}, Accuracy: {accuracy:.4f}, Output range: [{out_min:.4f}, {out_max:.4f}]")
     
-    # Save the generator's state (the pyramid, here simplified, as Gs.pth)
+    # Save the generator's state (the pyramid, here simplified as Gs.pth)
     save_path = os.path.join(opt.dir2save, 'Gs.pth')
     torch.save(netG.state_dict(), save_path)
     print("Saved Generator state to", save_path)
     
-    # For compatibility, return a tuple (Gs, Ds, Zs, reals, NoiseAmp)
-    # Here, only Gs is relevant.
-    return [netG.state_dict()], None, None, None, None
+    return [netG.state_dict()], None, None, None, None, metrics

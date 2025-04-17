@@ -2,6 +2,7 @@ import os
 import torch
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
 def read_image(opt):
@@ -40,9 +41,9 @@ def load_trained_pyramid(opt):
     gs_path = os.path.join(dir2save, 'Gs.pth')
     if os.path.exists(gs_path):
         state = torch.load(gs_path, map_location=torch.device("cpu"))
-        return [state], None, None, None, None
+        return [state], None, None, None, None, {'accuracy': []}  # Empty metrics for compatibility
     else:
-        return None, None, None, None, None
+        return None, None, None, None, None, {'accuracy': []}
 
 def post_config(opt):
     """Returns the post-processed configuration (if needed)."""
@@ -100,3 +101,22 @@ def creat_reals_mask_pyramid(real, reals, opt, mask):
         reals.append(torch.nn.functional.interpolate(real, scale_factor=scale, mode='bilinear', align_corners=False))
         masks.append(resize_and_tresh_mask(mask, scale))
     return reals, masks
+
+def plot_metrics(metrics, dir2save):
+    """
+    Plots and saves metrics like accuracy over training epochs.
+    Args:
+        metrics: Dictionary containing lists of metric values (e.g., accuracy).
+        dir2save: Directory to save the plotted graphs.
+    """
+    for metric_name, values in metrics.items():
+        plt.figure()
+        plt.plot(values, label=metric_name)
+        plt.xlabel("Epoch")
+        plt.ylabel(metric_name.capitalize())
+        plt.title(f"{metric_name.capitalize()} over Epochs")
+        plt.legend()
+        plot_path = os.path.join(dir2save, f"{metric_name}_plot.png")
+        plt.savefig(plot_path)
+        plt.close()
+        print(f"Saved {metric_name} plot to {plot_path}")
