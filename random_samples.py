@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
-import functions
+from SinGAN.functions import *
 from SinGAN_generate_multi import SinGAN_generate_multi
 
 parser = ArgumentParser()
