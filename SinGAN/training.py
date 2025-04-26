@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
+import SinGAN.functions as functions
 from SinGAN.models import Generator, Discriminator
 from SinGAN.functions import load_mask, generate_dir2save, adjust_scales2image
 
@@ -49,7 +50,7 @@ def train(opt, real):
     optimizerD = optim.Adam(netD.parameters(), lr=0.0002, betas=(0.5, 0.999))
     
     num_epochs = 3000  # Increase the number of epochs for better convergence
-    lambda_tv = 0.2   # Weight for total variation loss
+    lambda_tv = 0.5   # Weight for total variation loss
 
     metrics = {'accuracy': []}  # Store metrics like accuracy
 
@@ -81,12 +82,18 @@ def train(opt, real):
 
         # Save intermediate outputs every 100 epochs
         if epoch % 100 == 0:
+            # Merge unmasked portion of the original image with the generated one
+            original = functions.read_image(opt).to(device)
+            inpainted_image = mask * fake + (1 - mask) * original  # Combine masked and unmasked regions
             output_path = os.path.join(opt.dir2save, f'output_epoch_{epoch}.png')
-            plt.imsave(output_path, ((fake[0].cpu().detach().numpy() + 1) / 2).transpose(1, 2, 0))
+            plt.imsave(
+                output_path,
+                ((inpainted_image[0].cpu().detach().numpy() + 1) / 2).transpose(1, 2, 0)
+            )
             print(f"Saved intermediate output image to {output_path}")
         
         # Log training progress every 50 epochs.
-        if epoch % 50 == 0:
+        if epoch % 100 == 0:
             with torch.no_grad():
                 out_min = fake.min().item()
                 out_max = fake.max().item()
@@ -96,5 +103,13 @@ def train(opt, real):
     save_path = os.path.join(opt.dir2save, 'Gs.pth')
     torch.save(netG.state_dict(), save_path)
     print("Saved Generator state to", save_path)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    original_im = functions.read_image(opt).to(device) 
+    inpainted_image = mask * fake + (1 - mask) * original_im  # Replace only the masked region with generated content
+    plt.imsave(
+        os.path.join(opt.dir2save, 'inpainted_image.png'),
+        ((inpainted_image.detach() + 1) / 2).squeeze().permute(1, 2, 0).cpu().numpy()
+    ) 
     
     return [netG.state_dict()], None, None, None, None, metrics
